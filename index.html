@@ -101,14 +101,14 @@
   <div class="card" id="pasteCard" style="display:none">
     <div class="bd">
       <div style="font-size:12px; color:var(--ink2); margin-bottom:8px; line-height:1.5">
-        Copie le PDF du NavLog depuis Fichiers (appui long sur le fichier → Copier), puis touche la zone
-        ci-dessous et choisis « Coller ». L'outil détecte le départ, l'arrivée, la distance, le temps de vol
-        et le vent moyen — ajoute ensuite pax et bagages toi-même.
+        Choisis le PDF du NavLog. L'outil détecte le départ, l'arrivée, la distance, le temps de vol et le
+        vent moyen — ajoute ensuite pax et bagages toi-même.
       </div>
-      <div id="pasteZone" contenteditable="true" inputmode="none"
-        style="min-height:64px; border:1px dashed var(--line); border-radius:6px; padding:16px; font-size:13px; color:var(--ink2); text-align:center; outline:none; background:#F4F7FA">
-        Touche ici, puis « Coller »
-      </div>
+      <label for="pdfFile" style="display:block; min-height:64px; border:1px dashed var(--line); border-radius:6px;
+        padding:16px; font-size:13px; color:var(--blue); text-align:center; background:#F4F7FA; cursor:pointer">
+        Touche ici pour choisir le PDF
+        <input type="file" id="pdfFile" accept="application/pdf" style="display:none">
+      </label>
       <div id="pdfStatus" style="font-size:12px; color:var(--ink2); margin-top:8px"></div>
       <pre id="pasteExtract" style="display:none; margin-top:8px; max-height:140px; overflow:auto; background:#1B2A36; color:var(--paper); border-radius:6px; padding:8px; font-family:var(--mono); font-size:10px; white-space:pre-wrap"></pre>
     </div>
@@ -650,33 +650,18 @@ document.addEventListener("input", function(e){
     l[t.dataset.k]=t.value; update();
   }
 });
-document.addEventListener("paste", function(e){
-  var zone = document.getElementById("pasteZone");
-  if(!zone || e.target !== zone) return;
-  e.preventDefault();
+document.addEventListener("change", function(e){
+  if(e.target.id !== "pdfFile") return;
+  var file = e.target.files && e.target.files[0];
+  if(!file) return;
   var status = document.getElementById("pdfStatus");
   var extract = document.getElementById("pasteExtract");
-  zone.textContent = "Touche ici, puis « Coller »";
-
-  var cd = e.clipboardData || window.clipboardData;
-  var file = null;
-  if(cd && cd.items){
-    for(var i=0;i<cd.items.length;i++){
-      if(cd.items[i].kind === "file"){ file = cd.items[i].getAsFile(); break; }
-    }
-  }
-  if(!file && cd && cd.files && cd.files.length) file = cd.files[0];
-
-  if(!file){
-    status.textContent = "Aucun PDF détecté dans le presse-papier — copie le PDF depuis Fichiers (appui long → Copier), puis reviens coller ici.";
-    extract.style.display = "none";
-    return;
-  }
   if(!window.pdfjsLib){
     status.textContent = "Pas de connexion internet — impossible de lire le PDF automatiquement.";
     return;
   }
   status.textContent = "Lecture du PDF…";
+  extract.style.display = "none";
   pdfToText(file).then(function(text){
     var n = analyzeAndAddLegs(text);
     status.textContent = n>0
@@ -684,6 +669,7 @@ document.addEventListener("paste", function(e){
       : "PDF lu, mais rien reconnu — vérifie le texte extrait ci-dessous.";
     extract.textContent = text;
     extract.style.display = "block";
+    e.target.value = "";
   }).catch(function(err){
     status.textContent = "Erreur de lecture du PDF : "+(err && err.message ? err.message : "inconnue");
   });
@@ -730,6 +716,18 @@ load();
 Array.prototype.forEach.call(document.querySelectorAll("[data-sty]"),function(b){ b.classList.toggle("on", b.dataset.sty===STYLE); });
 renderParams();
 renderLegs();
+
+/* Import auto depuis un raccourci Partager (?navlog=texte-du-PDF) */
+(function(){
+  var params = new URLSearchParams(location.search);
+  var nav = params.get("navlog");
+  if(nav && nav.trim()){
+    document.getElementById("pasteCard").style.display = "block";
+    document.getElementById("tpaste").textContent = "Fermer";
+    analyzeAndAddLegs(nav);
+    history.replaceState({}, "", location.pathname);
+  }
+})();
 </script>
 </body>
 </html>

@@ -728,6 +728,42 @@ renderLegs();
     history.replaceState({}, "", location.pathname);
   }
 })();
+
+/* Import auto d'un PDF brut encodé en base64, via #pdf64=... (fragment, jamais envoyé au serveur) */
+(function(){
+  var hash = location.hash || "";
+  var idx = hash.indexOf("pdf64=");
+  if(idx === -1) return;
+  var b64 = decodeURIComponent(hash.slice(idx + 6));
+  history.replaceState({}, "", location.pathname + location.search);
+  document.getElementById("pasteCard").style.display = "block";
+  document.getElementById("tpaste").textContent = "Fermer";
+  var status = document.getElementById("pdfStatus");
+  if(!window.pdfjsLib){
+    status.textContent = "Pas de connexion internet — impossible de lire le PDF automatiquement.";
+    return;
+  }
+  status.textContent = "Lecture du PDF…";
+  try{
+    var bin = atob(b64);
+    var arr = new Uint8Array(bin.length);
+    for(var i=0;i<bin.length;i++) arr[i] = bin.charCodeAt(i);
+    var blob = new Blob([arr], {type:"application/pdf"});
+    pdfToText(blob).then(function(text){
+      var n = analyzeAndAddLegs(text);
+      var extract = document.getElementById("pasteExtract");
+      status.textContent = n>0
+        ? "PDF lu et "+n+" leg"+(n>1?"s":"")+" ajouté"+(n>1?"s":"")+"."
+        : "PDF lu, mais rien reconnu — vérifie le texte extrait ci-dessous.";
+      extract.textContent = text;
+      extract.style.display = "block";
+    }).catch(function(err){
+      status.textContent = "Erreur de lecture du PDF : "+(err && err.message ? err.message : "inconnue");
+    });
+  }catch(err){
+    status.textContent = "Le PDF reçu est corrompu ou incomplet.";
+  }
+})();
 </script>
 </body>
 </html>

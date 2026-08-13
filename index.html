@@ -60,6 +60,24 @@
   #dots .dot{width:9px; height:9px; border-radius:50%; border:0; padding:0;
     background:var(--line); transition:background .15s, transform .15s}
   #dots .dot.on{background:var(--blue); transform:scale(1.3)}
+  #printArea{display:none}
+  @media print{
+    .wrap{display:none !important}
+    #versionBadge{display:none !important}
+    #printArea{display:block; padding:0; color:#000; font-family:-apple-system,Segoe UI,Roboto,sans-serif}
+    @page{margin:14mm}
+    .pl{page-break-inside:avoid; break-inside:avoid; margin-bottom:16px; border:1px solid #000; border-radius:4px}
+    .plh{background:#EEE; padding:6px 9px; font-weight:700; font-size:13px;
+      border-bottom:1px solid #000; display:flex; justify-content:space-between}
+    .plt{width:100%; border-collapse:collapse; font-size:11.5px}
+    .plt td{padding:3px 9px; border-bottom:1px solid #DDD}
+    .plt td:last-child{text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap}
+    .plt tr:last-child td{border-bottom:0}
+    .plw{padding:5px 9px; font-size:11px; border-bottom:1px solid #DDD; background:#F7F7F7}
+    .pla{padding:5px 9px; font-size:11.5px; font-weight:700}
+    .plsig{margin-top:22px; font-size:11px}
+    .plsig div{border-top:1px solid #000; margin-top:26px; padding-top:3px; width:62%}
+  }
   .mode{border-radius:6px; padding:2px 8px; font-family:var(--mono); font-size:10px;
         border:1px solid var(--line); background:transparent; color:var(--ink2)}
   .mode.on{background:var(--blue); border-color:var(--blue); color:#fff}
@@ -98,7 +116,7 @@
 </style>
 </head>
 <body>
-<div id="versionBadge" style="position:fixed; top:6px; right:8px; z-index:999; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:10px; color:#4A5A66; background:rgba(255,255,255,0.9); padding:2px 7px; border-radius:5px; border:1px solid #D3D9D6;">v16</div>
+<div id="versionBadge" style="position:fixed; top:6px; right:8px; z-index:999; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:10px; color:#4A5A66; background:rgba(255,255,255,0.9); padding:2px 7px; border-radius:5px; border:1px solid #D3D9D6;">v18</div>
 <div class="wrap">
   <div class="top">
     <div>
@@ -190,6 +208,7 @@
     <div class="tot"><span>TOTAL</span><span id="tot">—</span></div>
     <button class="cbtn" id="copyfull">Copier le tableau complet</button>
     <button class="cbtn ghost" id="copysuivi">Copier le suivi de vol (route · POB · temps)</button>
+      <button class="cbtn ghost" id="printplan">Imprimer le plan de vol</button>
     <div class="prevhd"><span>Aperçu du texto</span>
       <span><button class="sty on" data-sty="emoji">Couleur</button><button class="sty" data-sty="sobre">Sobre</button></span>
     </div>
@@ -201,6 +220,8 @@
   </div>
   <div id="dots"></div>
 </div>
+
+<div id="printArea"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
@@ -884,32 +905,93 @@ function update(){
 
 /* ---------- textes ---------- */
 function textFull(C,tot){
-  var AC=activeAc()||{}; var L=[((AC.reg||"")+" "+(AC.desc||"")).trim()+" — MaxSkid "+num(P.maxskid)+" lb"];
+  var AC = activeAc()||{}, e = (STYLE==="emoji");
+  var d = new Date().toLocaleDateString("fr-CA",{day:"numeric",month:"long"});
+  var L = [];
+  L.push((e?"\uD83D\uDE81 ":"")+((AC.reg||"")+(AC.desc?" \u00B7 "+AC.desc:"")));
+  L.push((e?"\uD83D\uDCC5 ":"")+d+" \u00B7 MaxSkid "+num(P.maxskid,0)+" lb \u00B7 pilote "+num(P.pilot,0)+" lb");
+
   C.forEach(function(c,i){
     L.push("");
-    L.push("LEG "+(i+1)+" : "+legLabel(c.A,c.l.from)+" > "+legLabel(c.B,c.l.to)+(c.nm?" ("+num(c.nm,0)+" NM)":""));
-    if(c.wind) L.push("Route/Cap    : "+num(c.tc,0)+"° vrai / cap "+num(c.wind.heading,0)+"° (WCA "+(c.wind.wca>=0?"+":"")+num(c.wind.wca,0)+"°) · GS "+num(c.wind.gs,0)+" kt");
-    L.push("% depart      : "+num(c.pct,0)+" %"+(c.l.auto?" (auto MaxSkid)":""));
-    L.push("L embarques   : "+num(c.loaded,0)+" L");
-    L.push("Temps de vol  : "+hm(c.hrs));
-    L.push("Conso leg     : "+num(c.burnL,0)+" L");
-    L.push("Fuel restant  : "+num(c.remainL,0)+" L ("+num(c.remainL/P.tank*100,0)+" %)");
-    L.push("Temps restant : "+hm(c.remainL/P.burn));
-    L.push("Pax           : "+num(c.paxW,0)+" lb ("+c.pax.length+")");
-    L.push("Bagages       : "+num(c.bag,0)+" lb");
-    L.push("Fuel          : "+num(c.fuelW,0)+" lb");
-    L.push("AUW           : "+num(c.auw,0)+" lb");
-    L.push("MaxSkid       : "+num(P.maxskid,0)+" lb");
-    L.push("Marge         : "+(c.margin>=0?"+":"")+num(c.margin,0)+" lb");
-    L.push("Fuel max/min  : "+num(c.maxFuelL,0)+" L ("+num(c.maxPct,0)+" %) / "+num(c.minL,0)+" L ("+num(c.minPct,0)+" %)");
-    if(c.overL>0) L.push("!! DEPASSEMENT : -"+num(c.overL,0)+" L -> max "+num(c.maxPct,0)+" %");
-    else if(c.l.auto&&c.shortL>0) L.push("!! MANQUE "+num(c.shortL,0)+" L pour vol + reserve -> escale carburant");
-    else if(c.lowRes) L.push("!! RESERVE "+P.reserve+" min entamee");
+    L.push("\u2501\u2501 LEG "+(i+1)+" \u2501\u2501");
+    L.push(legLabel(c.A,c.l.from)+" \u279C "+legLabel(c.B,c.l.to)+(c.nm?" \u00B7 "+num(c.nm,0)+" NM":""));
+    if(c.wind)
+      L.push((e?"\uD83E\uDDED ":"Cap  ")+"route "+num(c.tc,0)+"\u00B0 \u00B7 cap "+num(c.wind.heading,0)+"\u00B0 \u00B7 GS "+num(c.wind.gs,0)+" kt");
+    L.push((e?"\u26FD ":"Fuel ")+"d\u00e9part "+num(c.pct,0)+" % ("+num(c.startL,0)+" L)"+
+      (c.l.auto?" \u00B7 plein MaxSkid":(c.carry?" \u00B7 report du leg "+i:"")));
+    if(c.loaded>0.5) L.push((e?"\uD83D\uDEE2 ":"Avit ")+"embarqu\u00e9 "+num(c.loaded,0)+" L");
+    L.push((e?"\u23F1 ":"Vol  ")+hm(c.hrs)+" \u00B7 conso "+num(c.burnL,0)+" L");
+    L.push((e?"\uD83D\uDD0B ":"Rest ")+num(c.remainL,0)+" L ("+num(c.remainL/P.tank*100,0)+" %) \u00B7 autonomie "+hm(c.remainL/P.burn));
+    L.push((e?"\uD83D\uDC65 ":"Pax  ")+num(c.paxW,0)+" lb ("+c.pax.length+" pax) \u00B7 bagages "+num(c.bag,0)+" lb");
+    L.push((e?"\u2696\uFE0F AUW ":"AUW  ")+num(c.auw,0)+" lb \u00B7 marge "+(c.margin>=0?"+":"")+num(c.margin,0)+" lb");
+    L.push((e?"\uD83D\uDCCA ":"Lim  ")+"fuel max "+num(c.maxFuelL,0)+" L \u00B7 min "+num(c.minL,0)+" L");
+    if(c.paxOver) L.push((e?"\u26A0\uFE0F ":"!! ")+c.paxAll+" pax pour "+c.seats+" si\u00e8ges");
+    if(c.overL>0) L.push((e?"\u26A0\uFE0F ":"!! ")+"D\u00c9PASSEMENT \u2212"+num(c.overL,0)+" L \u2192 max "+num(c.maxPct,0)+" %");
+    else if(c.l.auto&&c.shortL>0) L.push((e?"\u26A0\uFE0F ":"!! ")+"MANQUE "+num(c.shortL,0)+" L pour vol + r\u00e9serve");
+    else if(c.lowRes) L.push((e?"\u26A0\uFE0F ":"!! ")+"R\u00c9SERVE "+P.reserve+" min entam\u00e9e");
   });
-  L.push(""); L.push("TOTAL : "+num(tot.nm,0)+" NM / "+hm(tot.hrs)+" / "+num(tot.burn,0)+" L");
-  L.push("A confirmer dans iBal (Weight and CG OK).");
+
+  L.push("");
+  L.push("\u2501\u2501 TOTAL \u2501\u2501");
+  L.push(num(tot.nm,0)+" NM \u00B7 "+hm(tot.hrs)+" \u00B7 "+num(tot.burn,0)+" L");
+  L.push("Confirmer \u00AB Weight and CG OK \u00BB dans iBal.");
   return L.join("\n");
 }
+/* ---------- version imprimable ---------- */
+function esc(x){ return String(x==null?"":x).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function printHTML(C,tot){
+  var AC = activeAc()||{};
+  var d = new Date().toLocaleDateString("fr-CA",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+  var H = '<div style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid #000; padding-bottom:6px; margin-bottom:14px">'+
+    '<div><div style="font-size:20px; font-weight:800; letter-spacing:1px">'+esc(AC.reg||"—")+'</div>'+
+    '<div style="font-size:12px">'+esc(AC.desc||"")+'</div></div>'+
+    '<div style="text-align:right; font-size:11px; line-height:1.5">'+esc(d)+'<br>'+
+    'MaxSkid '+num(P.maxskid,0)+' lb · Pilote '+num(P.pilot,0)+' lb<br>'+
+    'Réservoir '+num(P.tank,0)+' L · '+num(P.burn,0)+' L/h · réserve '+P.reserve+' min</div></div>';
+
+  C.forEach(function(c,i){
+    var rows = [
+      ["% réservoir au départ", num(c.pct,0)+" %"+(c.l.auto?" (plein MaxSkid)":(c.carry?" (report leg "+i+")":""))],
+      ["Litres au départ", num(c.startL,0)+" L"],
+      ["Litres embarqués", num(c.loaded,0)+" L"],
+      ["Temps de vol du leg", hm(c.hrs)],
+      ["Conso du leg", num(c.burnL,0)+" L"],
+      ["Fuel restant", num(c.remainL,0)+" L ("+num(c.remainL/P.tank*100,0)+" %)"],
+      ["Temps de vol restant", hm(c.remainL/P.burn)],
+      ["Poids passagers ("+c.pax.length+")", num(c.paxW,0)+" lb"],
+      ["Poids bagages", num(c.bag,0)+" lb"],
+      ["Poids fuel", num(c.fuelW,0)+" lb"],
+      ["Poids total (AUW)", num(c.auw,0)+" lb"],
+      ["MaxSkid", num(P.maxskid,0)+" lb"],
+      ["Marge vs MaxSkid", (c.margin>=0?"+":"")+num(c.margin,0)+" lb"]
+    ];
+    var alerts = [];
+    if(c.paxOver) alerts.push(c.paxAll+" passagers pour "+c.seats+" sièges — surplus non compté");
+    if(c.overL>0) alerts.push("DÉPASSEMENT MaxSkid : retirer "+num(c.overL,0)+" L (max "+num(c.maxPct,0)+" %)");
+    else if(c.l.auto&&c.shortL>0) alerts.push("Carburant insuffisant : manque "+num(c.shortL,0)+" L pour le vol + réserve");
+    else if(c.lowRes) alerts.push("Réserve de "+P.reserve+" min entamée");
+    if(c.windWarn) alerts.push("Vent trop fort par rapport à la TAS — calcul non fiable");
+
+    H += '<div class="pl">'+
+      '<div class="plh"><span>LEG '+(i+1)+' · '+esc(legLabel(c.A,c.l.from))+' → '+esc(legLabel(c.B,c.l.to))+'</span>'+
+      '<span>'+(c.nm?num(c.nm,0)+" NM · ":"")+hm(c.hrs)+'</span></div>'+
+      (c.wind ? '<div class="plw">Route '+num(c.tc,0)+'° vrai · WCA '+(c.wind.wca>=0?"+":"")+num(c.wind.wca,0)+
+        '° · cap '+num(c.wind.heading,0)+'° · GS '+num(c.wind.gs,0)+' kt · vent '+num(f(c.l.windDir),0)+'°/'+num(f(c.l.windSpd),0)+' kt</div>' : '')+
+      '<table class="plt"><tbody>'+
+      rows.map(function(r){ return '<tr><td>'+esc(r[0])+'</td><td>'+esc(r[1])+'</td></tr>'; }).join("")+
+      '</tbody></table>'+
+      (alerts.length ? '<div class="pla">⚠ '+alerts.map(esc).join('<br>⚠ ')+'</div>' : '')+
+      '</div>';
+  });
+
+  H += '<div class="pl"><div class="plh"><span>TOTAL</span><span>'+
+    num(tot.nm,0)+' NM · '+hm(tot.hrs)+' · '+num(tot.burn,0)+' L</span></div>'+
+    '<div class="plw">Distances en grand cercle, sans vent ni détour. Coordonnées à vérifier au CFS. '+
+    'Confirmer « Weight and CG OK » dans iBal avec la vraie disposition des sièges.</div></div>'+
+    '<div class="plsig"><div>Signature du pilote</div></div>';
+  return H;
+}
+
 function textSuivi(C,tot){
   var d = new Date().toLocaleDateString("fr-CA",{day:"numeric",month:"long"});
   var NUM = ["1\u20E3","2\u20E3","3\u20E3","4\u20E3","5\u20E3","6\u20E3","7\u20E3","8\u20E3","9\u20E3"];
@@ -1028,6 +1110,13 @@ document.addEventListener("change", function(e){
 });
 document.addEventListener("click", function(e){
   var t=e.target.closest("button"); if(!t) return;
+  if(t.id==="printplan"){
+    var Cp=compute(), tp={nm:0,hrs:0,burn:0};
+    Cp.forEach(function(c){ tp.nm+=c.nm||0; tp.hrs+=c.hrs||0; tp.burn+=c.burnL||0; });
+    document.getElementById("printArea").innerHTML = printHTML(Cp,tp);
+    setTimeout(function(){ window.print(); }, 60);
+    return;
+  }
   if(t.id==="deckPrev"){ goSlide(currentSlide()-1); return; }
   if(t.id==="deckNext"){ goSlide(currentSlide()+1); return; }
   if(t.dataset.slide!==undefined){ goSlide(parseInt(t.dataset.slide,10)); return; }

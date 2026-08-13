@@ -84,7 +84,7 @@
 </style>
 </head>
 <body>
-<div id="versionBadge" style="position:fixed; top:6px; right:8px; z-index:999; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:10px; color:#4A5A66; background:rgba(255,255,255,0.9); padding:2px 7px; border-radius:5px; border:1px solid #D3D9D6;">v3</div>
+<div id="versionBadge" style="position:fixed; top:6px; right:8px; z-index:999; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:10px; color:#4A5A66; background:rgba(255,255,255,0.9); padding:2px 7px; border-radius:5px; border:1px solid #D3D9D6;">v4</div>
 <div class="wrap">
   <div class="top">
     <div>
@@ -270,6 +270,45 @@ function legLabel(loc,raw){
   if(loc.t==="C") return loc.n!=="Coordonnées" ? loc.n.toUpperCase() : loc.lat.toFixed(2)+"/"+loc.lon.toFixed(2);
   return loc.n.toUpperCase();
 }
+/* Découpe un NavLog en legs séparés à partir du tableau des waypoints.
+   Retourne null si la structure n'est pas reconnue (on retombe alors sur un leg unique). */
+function splitNavlogLegs(text, dep, dest, totalNm, totalMin){
+  if(!dep || !dest || !totalNm || !totalMin) return null;
+  var lines = String(text||"").split(/\r?\n/);
+  var stops = [];
+  for(var i=0;i<lines.length;i++){
+    var f = lines[i].trim().split(/\s+/);
+    if(f.length < 10) continue;
+    var name = f[0];
+    if(!/^[A-Z][A-Z0-9]{2,4}$/.test(name)) continue;   // écarte -TOC-, 100-CYQB, etc.
+    if(name === dep) continue;                          // ligne de départ
+    if(!AIRPORTS[name]) continue;                       // écarte les fixes non aéroportuaires
+    var ete = null;
+    for(var j=f.length-1;j>=0;j--){ if(/^\d{1,2}:\d{2}$/.test(f[j])){ ete=f[j]; break; } }
+    if(!ete) continue;
+    var remRaw = f[f.length-4];
+    var rem = (remRaw === "-") ? 0 : parseFloat(remRaw);
+    if(isNaN(rem)) continue;
+    var wind = null;
+    for(var k=0;k<f.length;k++){ if(/^\d{3}\/\d{2,3}$/.test(f[k])){ wind=f[k]; break; } }
+    var hm = ete.split(":");
+    stops.push({ name:name, ete: parseInt(hm[0],10)*60 + parseInt(hm[1],10), rem: rem, wind: wind });
+  }
+  if(stops.length < 2) return null;
+  if(stops[stops.length-1].name !== dest) return null;
+  var prev = { name: dep, rem: totalNm, ete: 0 }, legs = [];
+  for(var s=0;s<stops.length;s++){
+    var st = stops[s];
+    var d = prev.rem - st.rem, mn = st.ete - prev.ete;
+    if(!(d > 0) || !(mn > 0)) return null;
+    var wd = "", ws = "";
+    if(st.wind){ var p = st.wind.split("/"); wd = String(parseInt(p[0],10)); ws = String(parseInt(p[1],10)); }
+    legs.push({ from: prev.name, to: st.name, nm: String(Math.round(d)), min: String(mn), windDir: wd, windSpd: ws });
+    prev = st;
+  }
+  return legs.length > 1 ? legs : null;
+}
+
 function parseNavlogPaste(text){
   text = String(text||"");
   var titleRe = /([A-Za-z0-9°'".]+)\s*[—–-]\s*([A-Za-z0-9°'".]+)\s*\(([^)]*)\)\s*in\s*([^\n(]+?)\s*\(([^)]*)\)\s*(VFR|IFR)/g;
@@ -287,6 +326,11 @@ function parseNavlogPaste(text){
   for(var i=0;i<n;i++){
     var t=titles[i]||{}, q=quicks[i]||{};
     if(!t.dep && !t.dest && q.dist===undefined) continue;
+    /* Un seul NavLog collé : on tente de le découper par escales */
+    if(n === 1){
+      var split = splitNavlogLegs(text, t.dep, t.dest, q.dist, q.eteMin);
+      if(split){ out = out.concat(split); continue; }
+    }
     out.push({
       from: t.dep||"", to: t.dest||"",
       nm: q.dist!==undefined ? String(q.dist) : "",

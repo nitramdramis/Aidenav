@@ -84,7 +84,7 @@
 </style>
 </head>
 <body>
-<div id="versionBadge" style="position:fixed; top:6px; right:8px; z-index:999; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:10px; color:#4A5A66; background:rgba(255,255,255,0.9); padding:2px 7px; border-radius:5px; border:1px solid #D3D9D6;">v12</div>
+<div id="versionBadge" style="position:fixed; top:6px; right:8px; z-index:999; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:10px; color:#4A5A66; background:rgba(255,255,255,0.9); padding:2px 7px; border-radius:5px; border:1px solid #D3D9D6;">v13</div>
 <div class="wrap">
   <div class="top">
     <div>
@@ -499,6 +499,7 @@ function analyzeAndAddLegs(text){
   var found = parseNavlogPaste(text);
   var msg = document.getElementById("pdfStatus");
   if(!found.length){ msg.textContent="Rien reconnu — assure-toi d'avoir copié le NavLog complet (avec ETE, Distance, Avg Wind)."; return 0; }
+  LEGS = [];   /* un nouveau NavLog remplace le plan précédent */
   found.forEach(function(fdata){
     var nl=newLeg(fdata.from, fdata.to);
     nl.nmOv=fdata.nm||""; nl.minOv=fdata.min||""; nl.windDir=fdata.windDir||""; nl.windSpd=fdata.windSpd||"";
@@ -1046,15 +1047,40 @@ renderLegs();
   }
 })();
 
-/* Import via presse-papiers (#clip) — déclenché par le raccourci Partager */
+/* Import via presse-papiers (#clip) — déclenché par le raccourci Partager.
+   On tente la lecture tout de suite ; si iOS exige un geste, on bascule sur le bouton
+   et sur un simple appui n'importe où dans la page. */
+function readClipboardNow(){
+  var status = document.getElementById("pdfStatus");
+  if(!navigator.clipboard || !navigator.clipboard.readText){
+    status.textContent = "Ce navigateur ne permet pas la lecture du presse-papiers.";
+    return Promise.reject();
+  }
+  return navigator.clipboard.readText().then(function(txt){
+    document.getElementById("clipBtn").style.display = "none";
+    handleBase64Pdf(txt);
+  });
+}
 (function(){
   var hash = location.hash || "";
   if(hash.indexOf("clip") === -1) return;
   history.replaceState({}, "", location.pathname + location.search);
   document.getElementById("pasteCard").style.display = "block";
   document.getElementById("tpaste").textContent = "Fermer";
-  document.getElementById("clipBtn").style.display = "block";
-  document.getElementById("pdfStatus").textContent = "NavLog reçu — touche le bouton bleu pour l'importer.";
+  document.getElementById("pdfStatus").textContent = "Lecture du NavLog…";
+  readClipboardNow().catch(function(){
+    document.getElementById("clipBtn").style.display = "block";
+    document.getElementById("pdfStatus").textContent = "Touche l'écran pour importer le NavLog.";
+    var go = function(){
+      document.removeEventListener("click", go, true);
+      readClipboardNow().catch(function(){
+        document.getElementById("pdfStatus").textContent =
+          "Lecture refusée. Réglages > Safari > « Coller depuis d\'autres apps » > Autoriser, puis retouche l\'écran.";
+        document.addEventListener("click", go, true);
+      });
+    };
+    document.addEventListener("click", go, true);
+  });
 })();
 
 /* Import direct d'un PDF encodé dans l'adresse (#pdf64=) — secours, limité en taille */

@@ -46,6 +46,20 @@
   .autobox b{font-family:var(--mono); font-size:16px; color:var(--blue)}
   .autobox span{font-family:var(--mono); font-size:11px; color:var(--ink2)}
   .modehd{display:flex; justify-content:space-between; align-items:center; margin-bottom:4px}
+  #deck{display:flex; align-items:flex-start; overflow-x:auto; overflow-y:visible;
+    scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; scrollbar-width:none}
+  #deck::-webkit-scrollbar{display:none}
+  #legs{display:contents}
+  .slide{flex:0 0 100%; width:100%; min-width:100%; box-sizing:border-box; scroll-snap-align:center; scroll-snap-stop:always}
+  .deckbar{display:flex; align-items:center; justify-content:space-between; gap:10px; margin:2px 2px 8px}
+  .deckbar .nav{border:1px solid var(--line); background:var(--panel); color:var(--blue);
+    border-radius:8px; width:38px; height:34px; font-size:17px; line-height:1; flex:0 0 auto}
+  .deckbar .nav:disabled{color:var(--line)}
+  #deckLabel{font-family:var(--mono); font-size:11px; letter-spacing:1px; color:var(--ink2); flex:1; text-align:center}
+  #dots{display:flex; justify-content:center; gap:7px; flex-wrap:wrap; margin:2px 0 10px}
+  #dots .dot{width:9px; height:9px; border-radius:50%; border:0; padding:0;
+    background:var(--line); transition:background .15s, transform .15s}
+  #dots .dot.on{background:var(--blue); transform:scale(1.3)}
   .mode{border-radius:6px; padding:2px 8px; font-family:var(--mono); font-size:10px;
         border:1px solid var(--line); background:transparent; color:var(--ink2)}
   .mode.on{background:var(--blue); border-color:var(--blue); color:#fff}
@@ -84,7 +98,7 @@
 </style>
 </head>
 <body>
-<div id="versionBadge" style="position:fixed; top:6px; right:8px; z-index:999; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:10px; color:#4A5A66; background:rgba(255,255,255,0.9); padding:2px 7px; border-radius:5px; border:1px solid #D3D9D6;">v15</div>
+<div id="versionBadge" style="position:fixed; top:6px; right:8px; z-index:999; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:10px; color:#4A5A66; background:rgba(255,255,255,0.9); padding:2px 7px; border-radius:5px; border:1px solid #D3D9D6;">v16</div>
 <div class="wrap">
   <div class="top">
     <div>
@@ -162,10 +176,17 @@
     </div>
   </div>
 
-  <div id="legs"></div>
-  <button class="add" id="addleg">+ Ajouter un leg</button>
+  <div class="deckbar">
+    <button class="nav" id="deckPrev">‹</button>
+    <span id="deckLabel">—</span>
+    <button class="nav" id="deckNext">›</button>
+  </div>
 
-  <div class="foot">
+  <div id="deck">
+    <div id="legs"></div>
+    <div class="slide" id="summarySlide">
+      <button class="add" id="addleg">+ Ajouter un leg</button>
+      <div class="foot">
     <div class="tot"><span>TOTAL</span><span id="tot">—</span></div>
     <button class="cbtn" id="copyfull">Copier le tableau complet</button>
     <button class="cbtn ghost" id="copysuivi">Copier le suivi de vol (route · POB · temps)</button>
@@ -173,9 +194,12 @@
       <span><button class="sty on" data-sty="emoji">Couleur</button><button class="sty" data-sty="sobre">Sobre</button></span>
     </div>
     <pre id="prev"></pre>
-    <div class="note">Distances en grand cercle, sans vent ni détour. Coordonnées de la base à vérifier au CFS.
-      Confirme toujours « Weight and CG OK » dans iBal avec la vraie disposition des sièges.</div>
+      <div class="note">Distances en grand cercle, sans vent ni détour. Coordonnées de la base à vérifier au CFS.
+        Confirme toujours « Weight and CG OK » dans iBal avec la vraie disposition des sièges.</div>
+      </div>
+    </div>
   </div>
+  <div id="dots"></div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -514,6 +538,9 @@ function analyzeAndAddLegs(text){
   msg.textContent = found.length+" leg"+(found.length>1?"s":"")+" ajouté"+(found.length>1?"s":"")+" — reste à entrer les passagers et bagages."+extra;
   renderLegs();
   try{ window.scrollTo(0,0); }catch(e){}
+  var dk = document.getElementById("deck");
+  if(dk) dk.scrollLeft = 0;
+  updateDeckUI();
   return found.length;
 }
 
@@ -670,10 +697,11 @@ function rowsHTML(id){
 
 function legHTML(l,i){
   var carryMode = (!l.auto && i>0);
+  var open = '<div class="slide">';
   var pctField = (l.auto || carryMode)
     ? '<div class="autobox"><b data-o="autopct">—</b><span data-o="autol">—</span></div>'
     : '<span class="inp"><input inputmode="decimal" data-k="pct" data-id="'+l.id+'" value="'+l.pct+'"><span class="unit">%</span></span>';
-  return '<div class="card" id="c'+l.id+'">'+
+  return open+'<div class="card" id="c'+l.id+'">'+
     '<div class="hd"><span class="legno">LEG '+(i+1)+'</span>'+
       '<button class="rm" data-rm="'+l.id+'">Retirer</button></div>'+
     '<div class="bd">'+
@@ -719,18 +747,53 @@ function legHTML(l,i){
         '<button class="box" data-setmin="'+l.id+'" data-o="minbox"><div class="t" data-o="minlab">Fuel min</div>'+
           '<div class="m" data-o="bmin">—</div><div class="s" data-o="bminp">—</div></button>'+
       '</div>'+
-    '</div></div>';
+    '</div></div></div>';
 }
 
 function renderLegs(){
   var host = document.getElementById("legs");
   if(!LEGS.length){
-    host.innerHTML = '<div class="card"><div class="bd" style="text-align:center; color:var(--ink2); font-size:13px; line-height:1.6; padding:22px 12px">'+
-      'Aucun leg pour l\'instant.<br>Importe un NavLog ou touche « + Ajouter un leg ».</div></div>';
+    host.innerHTML = '<div class="slide"><div class="card"><div class="bd" style="text-align:center; color:var(--ink2); font-size:13px; line-height:1.6; padding:22px 12px">'+
+      'Aucun leg pour l\'instant.<br>Importe un NavLog, ou glisse vers la gauche pour ajouter un leg.</div></div></div>';
   } else {
     host.innerHTML = LEGS.map(legHTML).join("");
   }
+  renderDots();
   update();
+}
+
+/* ---------- navigation par pages ---------- */
+function slideCount(){ return (LEGS.length ? LEGS.length : 1) + 1; }
+function currentSlide(){
+  var d = document.getElementById("deck");
+  if(!d || !d.clientWidth) return 0;
+  return Math.min(slideCount()-1, Math.max(0, Math.round(d.scrollLeft / d.clientWidth)));
+}
+function goSlide(i){
+  var d = document.getElementById("deck");
+  if(!d) return;
+  i = Math.min(slideCount()-1, Math.max(0, i));
+  d.scrollTo({left: i * d.clientWidth, behavior: "smooth"});
+}
+function renderDots(){
+  var d = document.getElementById("dots");
+  if(!d) return;
+  var n = slideCount(), h = "";
+  for(var i=0;i<n;i++) h += '<button class="dot" data-slide="'+i+'"></button>';
+  d.innerHTML = h;
+  updateDeckUI();
+}
+function updateDeckUI(){
+  var cur = currentSlide(), last = slideCount()-1;
+  Array.prototype.forEach.call(document.querySelectorAll("#dots .dot"), function(b,i){
+    b.className = "dot" + (i===cur ? " on" : "");
+  });
+  var lab = document.getElementById("deckLabel");
+  if(lab) lab.textContent = (LEGS.length && cur < LEGS.length)
+    ? ("LEG " + (cur+1) + " / " + LEGS.length) : "RÉSUMÉ";
+  var p = document.getElementById("deckPrev"), nx = document.getElementById("deckNext");
+  if(p) p.disabled = (cur<=0);
+  if(nx) nx.disabled = (cur>=last);
 }
 
 function q(id,name){ return document.querySelector('#c'+id+' [data-o="'+name+'"]'); }
@@ -965,6 +1028,9 @@ document.addEventListener("change", function(e){
 });
 document.addEventListener("click", function(e){
   var t=e.target.closest("button"); if(!t) return;
+  if(t.id==="deckPrev"){ goSlide(currentSlide()-1); return; }
+  if(t.id==="deckNext"){ goSlide(currentSlide()+1); return; }
+  if(t.dataset.slide!==undefined){ goSlide(parseInt(t.dataset.slide,10)); return; }
   if(t.id==="clipBtn"){
     var status = document.getElementById("pdfStatus");
     if(!navigator.clipboard || !navigator.clipboard.readText){
@@ -1007,7 +1073,8 @@ document.addEventListener("click", function(e){
   }
   if(t.id==="reset"){ LEGS=[]; renderLegs(); return; }
   if(t.id==="addleg"){ var last=LEGS[LEGS.length-1];
-    var n=newLeg(last?last.to:"",""); if(last){ n.paxStr=last.paxStr; n.bag=last.bag; } LEGS.push(n); renderLegs(); return; }
+    var n=newLeg(last?last.to:"",""); if(last){ n.paxStr=last.paxStr; n.bag=last.bag; } LEGS.push(n);
+    renderLegs(); goSlide(LEGS.length-1); return; }
   if(t.dataset.rm){ LEGS=LEGS.filter(function(x){return x.id!==t.dataset.rm;}); renderLegs(); return; }
   if(t.dataset.setmax||t.dataset.setmin){
     var id=t.dataset.setmax||t.dataset.setmin;
@@ -1035,6 +1102,17 @@ Array.prototype.forEach.call(document.querySelectorAll("[data-sty]"),function(b)
 renderParams();
 renderTopBar();
 renderLegs();
+
+(function(){
+  var d = document.getElementById("deck");
+  if(!d) return;
+  var tmr = null;
+  d.addEventListener("scroll", function(){
+    if(tmr) clearTimeout(tmr);
+    tmr = setTimeout(updateDeckUI, 60);
+  });
+  window.addEventListener("resize", updateDeckUI);
+})();
 
 /* Import auto depuis un raccourci Partager (?navlog=texte-du-PDF) */
 (function(){

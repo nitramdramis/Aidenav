@@ -84,7 +84,7 @@
 </style>
 </head>
 <body>
-<div id="versionBadge" style="position:fixed; top:6px; right:8px; z-index:999; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:10px; color:#4A5A66; background:rgba(255,255,255,0.9); padding:2px 7px; border-radius:5px; border:1px solid #D3D9D6;">v2</div>
+<div id="versionBadge" style="position:fixed; top:6px; right:8px; z-index:999; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:10px; color:#4A5A66; background:rgba(255,255,255,0.9); padding:2px 7px; border-radius:5px; border:1px solid #D3D9D6;">v3</div>
 <div class="wrap">
   <div class="top">
     <div>
@@ -442,7 +442,10 @@ function handleBase64Pdf(b64){
       status.textContent = "Erreur de lecture du PDF : "+(err && err.message ? err.message : "inconnue");
     });
   }catch(err){
-    status.textContent = "Les données reçues ne sont pas un PDF valide.";
+    var apercu = b64.slice(0,60);
+    status.textContent = "Données non valides (" + b64.length + " caractères reçus). Début : " + apercu;
+    extract.textContent = "DIAGNOSTIC\n\nLongueur : " + b64.length + " caractères\n\nDébut du contenu reçu :\n" + b64.slice(0,300);
+    extract.style.display = "block";
   }
 }
 

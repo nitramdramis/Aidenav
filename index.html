@@ -84,7 +84,7 @@
 </style>
 </head>
 <body>
-<div id="versionBadge" style="position:fixed; top:6px; right:8px; z-index:999; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:10px; color:#4A5A66; background:rgba(255,255,255,0.9); padding:2px 7px; border-radius:5px; border:1px solid #D3D9D6;">v13</div>
+<div id="versionBadge" style="position:fixed; top:6px; right:8px; z-index:999; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:10px; color:#4A5A66; background:rgba(255,255,255,0.9); padding:2px 7px; border-radius:5px; border:1px solid #D3D9D6;">v14</div>
 <div class="wrap">
   <div class="top">
     <div>
@@ -1061,27 +1061,35 @@ function readClipboardNow(){
     handleBase64Pdf(txt);
   });
 }
-(function(){
+function handleClipHash(){
   var hash = location.hash || "";
   if(hash.indexOf("clip") === -1) return;
   history.replaceState({}, "", location.pathname + location.search);
   document.getElementById("pasteCard").style.display = "block";
   document.getElementById("tpaste").textContent = "Fermer";
-  document.getElementById("pdfStatus").textContent = "Lecture du NavLog…";
+  document.getElementById("pdfStatus").textContent = "Lecture du NavLog\u2026";
   readClipboardNow().catch(function(){
     document.getElementById("clipBtn").style.display = "block";
-    document.getElementById("pdfStatus").textContent = "Touche l'écran pour importer le NavLog.";
+    document.getElementById("pdfStatus").textContent = "Touche l\u2019\u00e9cran pour importer le NavLog.";
     var go = function(){
       document.removeEventListener("click", go, true);
       readClipboardNow().catch(function(){
         document.getElementById("pdfStatus").textContent =
-          "Lecture refusée. Réglages > Safari > « Coller depuis d\'autres apps » > Autoriser, puis retouche l\'écran.";
+          "Lecture refus\u00e9e \u2014 touche \u00e0 nouveau l\u2019\u00e9cran puis « Coller ».";
         document.addEventListener("click", go, true);
       });
     };
     document.addEventListener("click", go, true);
   });
-})();
+}
+/* La page reste souvent ouverte dans Safari : le raccourci ne fait alors que changer
+   l'ancre, sans recharger. On réagit donc aussi à ces cas-là. */
+window.addEventListener("hashchange", handleClipHash);
+window.addEventListener("pageshow", handleClipHash);
+document.addEventListener("visibilitychange", function(){
+  if(!document.hidden) handleClipHash();
+});
+handleClipHash();
 
 /* Import direct d'un PDF encodé dans l'adresse (#pdf64=) — secours, limité en taille */
 (function(){

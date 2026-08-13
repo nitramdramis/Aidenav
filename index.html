@@ -84,7 +84,7 @@
 </style>
 </head>
 <body>
-<div id="versionBadge" style="position:fixed; top:6px; right:8px; z-index:999; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:10px; color:#4A5A66; background:rgba(255,255,255,0.9); padding:2px 7px; border-radius:5px; border:1px solid #D3D9D6;">v4</div>
+<div id="versionBadge" style="position:fixed; top:6px; right:8px; z-index:999; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:10px; color:#4A5A66; background:rgba(255,255,255,0.9); padding:2px 7px; border-radius:5px; border:1px solid #D3D9D6;">v5</div>
 <div class="wrap">
   <div class="top">
     <div>
@@ -190,7 +190,6 @@ function load(){
       }); }
     }
   }catch(e){}
-  if(!LEGS.length) LEGS = [newLeg("CYSG","CYHU")];
 }
 
 /* ---------- utilitaires ---------- */
@@ -525,7 +524,7 @@ function legHTML(l,i){
     : '<span class="inp"><input inputmode="decimal" data-k="pct" data-id="'+l.id+'" value="'+l.pct+'"><span class="unit">%</span></span>';
   return '<div class="card" id="c'+l.id+'">'+
     '<div class="hd"><span class="legno">LEG '+(i+1)+'</span>'+
-      (LEGS.length>1?'<button class="rm" data-rm="'+l.id+'">Retirer</button>':'')+'</div>'+
+      '<button class="rm" data-rm="'+l.id+'">Retirer</button></div>'+
     '<div class="bd">'+
       '<div class="g2">'+
         '<label><span class="lab">Départ</span><span class="inp"><input data-k="from" data-id="'+l.id+'" value="'+l.from+'" placeholder="CYSG"></span></label>'+
@@ -568,7 +567,13 @@ function legHTML(l,i){
 }
 
 function renderLegs(){
-  document.getElementById("legs").innerHTML = LEGS.map(legHTML).join("");
+  var host = document.getElementById("legs");
+  if(!LEGS.length){
+    host.innerHTML = '<div class="card"><div class="bd" style="text-align:center; color:var(--ink2); font-size:13px; line-height:1.6; padding:22px 12px">'+
+      'Aucun leg pour l\'instant.<br>Importe un NavLog ou touche « + Ajouter un leg ».</div></div>';
+  } else {
+    host.innerHTML = LEGS.map(legHTML).join("");
+  }
   update();
 }
 
@@ -779,7 +784,7 @@ document.addEventListener("click", function(e){
     var open2=pc.style.display!=="none"; pc.style.display=open2?"none":"block"; t.textContent=open2?"Coller un NavLog":"Fermer";
     document.getElementById("params").style.display="none"; document.getElementById("tparams").textContent="Paramètres";
     return; }
-  if(t.id==="reset"){ LEGS=[newLeg("CYSG","CYHU")]; renderLegs(); return; }
+  if(t.id==="reset"){ LEGS=[]; renderLegs(); return; }
   if(t.id==="addleg"){ var last=LEGS[LEGS.length-1];
     var n=newLeg(last?last.to:"",""); if(last){ n.paxStr=last.paxStr; n.bag=last.bag; } LEGS.push(n); renderLegs(); return; }
   if(t.dataset.rm){ LEGS=LEGS.filter(function(x){return x.id!==t.dataset.rm;}); renderLegs(); return; }

@@ -84,13 +84,13 @@
 </style>
 </head>
 <body>
-<div id="versionBadge" style="position:fixed; top:6px; right:8px; z-index:999; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:10px; color:#4A5A66; background:rgba(255,255,255,0.9); padding:2px 7px; border-radius:5px; border:1px solid #D3D9D6;">v9</div>
+<div id="versionBadge" style="position:fixed; top:6px; right:8px; z-index:999; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:10px; color:#4A5A66; background:rgba(255,255,255,0.9); padding:2px 7px; border-radius:5px; border:1px solid #D3D9D6;">v12</div>
 <div class="wrap">
   <div class="top">
     <div>
       <div class="eyebrow">PLANIFICATION MULTI-LEGS</div>
-      <h1>FKNG</h1>
-      <div class="sub">EC130 B4 · 7 seats</div>
+      <h1 id="acReg">FKNG</h1>
+      <div class="sub" id="acDesc">EC130 B4 · 7 seats</div>
     </div>
     <div>
       <button class="btn grey" id="reset">Nouveau plan</button>
@@ -119,9 +119,33 @@
     </div>
   </div>
 
+  <div class="card" id="flightbar">
+    <div class="bd">
+      <div class="g2">
+        <label><span class="lab">Lettres d'appel</span>
+          <span class="inp" id="csWrap"><input id="callsign" placeholder="FKNG" autocapitalize="characters" autocorrect="off" spellcheck="false" style="text-transform:uppercase; letter-spacing:1px"></span></label>
+        <label><span class="lab">Poids du pilote</span>
+          <span class="inp"><input inputmode="decimal" data-p="pilot" value="190"><span class="unit">lb</span></span></label>
+      </div>
+      <div id="csMsg" style="font-size:12px; margin-top:6px; font-family:var(--mono)"></div>
+    </div>
+  </div>
+
   <div class="card" id="params" style="display:none">
     <div class="bd">
-      <div class="g2" id="pgrid"></div>
+      <div style="margin-bottom:14px; padding-bottom:14px; border-bottom:1px solid var(--line)">
+        <span class="lab">Appareil</span>
+        <div style="display:flex; gap:8px; align-items:center; margin-top:4px">
+          <span class="inp" style="flex:1"><select id="acSel" style="width:100%; border:0; background:transparent; font-size:15px; font-family:var(--mono); color:var(--ink); outline:none"></select></span>
+          <button class="btn" id="acNew" style="background:var(--blue); color:#fff; border-color:var(--blue)">+ Appareil</button>
+        </div>
+        <div class="g2" id="acgrid" style="margin-top:10px"></div>
+        <div style="display:flex; justify-content:flex-end; margin-top:8px">
+          <button class="btn" id="acDel" style="color:var(--red); border-color:var(--line)">Supprimer cet appareil</button>
+        </div>
+      </div>
+      <span class="lab">Paramètres communs</span>
+      <div class="g2" id="pgrid" style="margin-top:4px"></div>
       <div style="border-top:1px solid var(--line); margin-top:14px; padding-top:12px">
         <div style="font-size:12px; color:var(--ink2); margin-bottom:8px">
           Ajouter un point perso (camp de pêche) — utilisable ensuite par son nom.
@@ -165,14 +189,39 @@ var AIRPORTS={"CA-0002":[47.1054,-77.6311,"Pourvoirie Joncas Airstrip","A","QC"]
 var LBKG = 2.20462;
 
 /* ---------- état ---------- */
-var P = {bew:3512, pilot:190, maxskid:5350.6, tank:540, burn:200, dens:0.8, reserve:20, gs:110, marge:0};
+var P = {bew:3512, pilot:190, maxskid:5350.6, tank:540, burn:200, dens:0.8, reserve:20, gs:110, marge:0, seats:6};
 var LEGS = [], CUSTOM = {}, STYLE = "emoji", UID = 1;
+var FLEET = [], ACTIVE = null, ACUID = 1, CALLSIGN = "";
+
+/* Champs propres à l'appareil (le reste — pilote, réserve, marge — est commun à toute la flotte) */
+var AC_KEYS = ["bew","maxskid","tank","burn","dens","gs","seats"];
+
+function newAircraft(src){
+  var a = {id:"A"+(ACUID++), reg:"NOUVEL APPAREIL", desc:""};
+  AC_KEYS.forEach(function(k){ a[k] = src ? src[k] : P[k]; });
+  return a;
+}
+function activeAc(){
+  for(var i=0;i<FLEET.length;i++){ if(FLEET[i].id===ACTIVE) return FLEET[i]; }
+  return FLEET[0] || null;
+}
+/* Recopie les valeurs de l'appareil sélectionné dans les paramètres de calcul */
+function applyAc(){
+  var a = activeAc();
+  if(!a) return;
+  ACTIVE = a.id;
+  AC_KEYS.forEach(function(k){ P[k] = a[k]; });
+  var r = document.getElementById("acReg"), d = document.getElementById("acDesc");
+  if(r) r.textContent = a.reg || "—";
+  if(d) d.textContent = a.desc || "";
+}
 
 function newLeg(f,t){ return {id:"L"+(UID++), from:f||"", to:t||"", auto:true, pct:80, paxStr:"", bag:0, nmOv:"", minOv:"",
   windDir:"", windSpd:"", fromName:"", toName:""}; }
 
 function save(){
-  try{ localStorage.setItem("fkng", JSON.stringify({P:P, LEGS:LEGS, CUSTOM:CUSTOM, STYLE:STYLE})); }catch(e){}
+  try{ localStorage.setItem("fkng", JSON.stringify({P:P, LEGS:LEGS, CUSTOM:CUSTOM, STYLE:STYLE,
+    FLEET:FLEET, ACTIVE:ACTIVE, ACUID:ACUID, CALLSIGN:CALLSIGN})); }catch(e){}
 }
 function load(){
   try{
@@ -181,6 +230,9 @@ function load(){
       if(s.P) for(var k in s.P) P[k]=s.P[k];
       if(s.CUSTOM) CUSTOM = s.CUSTOM;
       if(s.STYLE) STYLE = s.STYLE;
+      if(s.CALLSIGN) CALLSIGN = s.CALLSIGN;
+      if(s.FLEET && s.FLEET.length){ FLEET = s.FLEET; ACTIVE = s.ACTIVE; ACUID = s.ACUID || (FLEET.length+1);
+        FLEET.forEach(function(x){ if(!x.seats) x.seats = 6; }); }
       if(s.LEGS && s.LEGS.length){ LEGS = s.LEGS; LEGS.forEach(function(l){
         if(l.auto===undefined) l.auto=true;
         if(l.windDir===undefined) l.windDir="";
@@ -190,6 +242,14 @@ function load(){
       }); }
     }
   }catch(e){}
+  /* Première ouverture (ou ancienne sauvegarde) : on crée la flotte à partir des valeurs en place */
+  if(!FLEET.length){
+    var a = newAircraft(P);
+    a.reg = "FKNG"; a.desc = "EC130 B4 · 7 seats";
+    FLEET = [a]; ACTIVE = a.id;
+    if(!CALLSIGN) CALLSIGN = a.reg;
+  }
+  applyAc();
 }
 
 /* ---------- utilitaires ---------- */
@@ -308,6 +368,12 @@ function splitNavlogLegs(text, dep, dest, totalNm, totalMin){
   return legs.length > 1 ? legs : null;
 }
 
+/* Immatriculation inscrite dans le NavLog : « ... in CFKNG (EC30 - XXXX) VFR » */
+function parseNavlogTail(text){
+  var m = String(text||"").match(/\)\s*in\s+([A-Za-z0-9-]{3,10})\s*\(/);
+  return m ? m[1].trim() : "";
+}
+
 function parseNavlogPaste(text){
   text = String(text||"");
   var titleRe = /([A-Za-z0-9°'".]+)\s*[—–-]\s*([A-Za-z0-9°'".]+)\s*\(([^)]*)\)\s*in\s*([^\n(]+?)\s*\(([^)]*)\)\s*(VFR|IFR)/g;
@@ -395,7 +461,11 @@ function compute(){
 
     var hrs = (l.minOv!=="" && !isNaN(parseFloat(String(l.minOv).replace(",",".")))) ? f(l.minOv)/60
             : (nm && gsEff>0 ? nm/gsEff : null);
-    var pax=parsePax(l.paxStr), paxW=pax.reduce(function(a,b){return a+b;},0), bag=f(l.bag);
+    var paxAll=parsePax(l.paxStr);
+    var seats = Math.max(0, Math.round(f(P.seats)||0));
+    var paxOver = seats>0 && paxAll.length>seats;
+    var pax = paxOver ? paxAll.slice(0,seats) : paxAll;
+    var paxW=pax.reduce(function(a,b){return a+b;},0), bag=f(l.bag);
     var zfw = P.bew+P.pilot+paxW+bag;
     var maxFuelL = Math.min(P.tank, Math.max(0,(P.maxskid-f(P.marge)-zfw)/lbPerL));
     var maxPct = maxFuelL/P.tank*100, autoPct = Math.floor(maxPct);
@@ -418,7 +488,8 @@ function compute(){
       burnL:burnL,remainL:remainL,fuelW:fuelW,auw:auw,margin:margin,overL:overL,
       minL:minL,minPct:minPct,minImp:(minL!==null&&minL>maxFuelL+0.05),
       lowRes:(remainL!==null&&remainL<resL), shortL:(minL===null?0:Math.max(0,minL-startL)),
-      lbPerL:lbPerL, resL:resL, tc:tc, wind:wind, gsEff:gsEff, windWarn:windWarn, carry:carry});
+      lbPerL:lbPerL, resL:resL, tc:tc, wind:wind, gsEff:gsEff, windWarn:windWarn, carry:carry,
+      paxOver:paxOver, paxAll:paxAll.length, seats:seats});
   });
   return out;
 }
@@ -433,7 +504,13 @@ function analyzeAndAddLegs(text){
     nl.nmOv=fdata.nm||""; nl.minOv=fdata.min||""; nl.windDir=fdata.windDir||""; nl.windSpd=fdata.windSpd||"";
     LEGS.push(nl);
   });
-  msg.textContent = found.length+" leg"+(found.length>1?"s":"")+" ajouté"+(found.length>1?"s":"")+" — reste à entrer les passagers et bagages.";
+  var tail = parseNavlogTail(text);
+  var extra = "";
+  if(tail){
+    applyCallsign(tail);
+    extra = findAc(tail) ? "" : " Appareil "+normReg(tail)+" non enregistré — vérifie les lettres d'appel en haut.";
+  }
+  msg.textContent = found.length+" leg"+(found.length>1?"s":"")+" ajouté"+(found.length>1?"s":"")+" — reste à entrer les passagers et bagages."+extra;
   renderLegs();
   return found.length;
 }
@@ -497,11 +574,78 @@ function handleBase64Pdf(b64){
 }
 
 /* ---------- rendu ---------- */
-var PFIELDS = [["bew","Basic empty weight","lb"],["pilot","Pilote","lb"],["maxskid","MaxSkid","lb"],
-  ["tank","Réservoir utilisable","L"],["burn","Consommation","L/h"],["dens","Densité","kg/L"],
-  ["reserve","Réserve","min"],["gs","Vitesse air (TAS)","kt"],["marge","Marge sous MaxSkid","lb"]];
+var ACFIELDS = [["reg","Immatriculation","",1],["desc","Description","",1],
+  ["bew","Basic empty weight","lb"],["maxskid","MaxSkid","lb"],
+  ["tank","Réservoir utilisable","L"],["burn","Consommation","L/h"],
+  ["dens","Densité","kg/L"],["gs","Vitesse air (TAS)","kt"],
+  ["seats","Sièges passagers","pax"]];
+var PFIELDS = [["pilot","Pilote","lb"],["reserve","Réserve","min"],["marge","Marge sous MaxSkid","lb"]];
 
+/* Lettres d'appel : « C-FKNG », « CFKNG » et « FKNG » désignent le même appareil */
+function normReg(s){ return String(s||"").toUpperCase().replace(/[^A-Z0-9]/g,""); }
+function findAc(reg){
+  var r = normReg(reg);
+  if(r.length < 3) return null;
+  var t = r.slice(-4);
+  for(var i=0;i<FLEET.length;i++){
+    var x = normReg(FLEET[i].reg);
+    if(x && (x===r || (x.length>=4 && x.slice(-4)===t))) return FLEET[i];
+  }
+  return null;
+}
+function applyCallsign(val, silent){
+  CALLSIGN = val;
+  var wrap = document.getElementById("csWrap"), msg = document.getElementById("csMsg");
+  var input = document.getElementById("callsign");
+  if(input && input.value !== val && document.activeElement !== input) input.value = val;
+  var clean = String(val||"").trim();
+  if(!wrap || !msg) return;
+  if(!clean){
+    wrap.style.borderColor = ""; wrap.style.background = "";
+    msg.textContent = ""; return;
+  }
+  var ac = findAc(clean);
+  if(ac){
+    wrap.style.borderColor = "#2E8B57"; wrap.style.background = "#F0F8F3";
+    msg.style.color = "#2E8B57";
+    msg.textContent = "✓ " + (ac.reg||"") + (ac.desc ? " · " + ac.desc : "");
+    if(ACTIVE !== ac.id){
+      ACTIVE = ac.id; applyAc(); renderParams();
+      if(!silent) update();
+    }
+  } else {
+    wrap.style.borderColor = "#C0392B"; wrap.style.background = "#FBEAE7";
+    msg.style.color = "#C0392B";
+    msg.textContent = "✕ Aucun appareil enregistré sous ces lettres — ajoute-le dans Paramètres.";
+  }
+}
+
+function acOptions(a){
+  return FLEET.map(function(x){
+    return '<option value="'+x.id+'"'+(a && x.id===a.id?' selected':'')+'>'+
+      (x.reg||"—")+(x.desc?" · "+x.desc:"")+'</option>';
+  }).join("");
+}
+function renderTopBar(){
+  syncParam("pilot");
+  applyCallsign(CALLSIGN, true);
+}
+/* Garde en phase les champs identiques présents à deux endroits (ex. poids pilote) */
+function syncParam(k){
+  Array.prototype.forEach.call(document.querySelectorAll('input[data-p="'+k+'"]'), function(el){
+    if(document.activeElement!==el) el.value = P[k];
+  });
+}
 function renderParams(){
+  var a = activeAc();
+  document.getElementById("acSel").innerHTML = acOptions(a);
+  document.getElementById("acgrid").innerHTML = !a ? "" : ACFIELDS.map(function(x){
+    var txt = x[3];
+    return '<label'+(txt?' style="grid-column:1/-1"':'')+'><span class="lab">'+x[1]+'</span><span class="inp">'+
+      '<input'+(txt?'':' inputmode="decimal"')+' data-ac="'+x[0]+'" value="'+(a[x[0]]===undefined?"":a[x[0]])+'">'+
+      (x[2]?'<span class="unit">'+x[2]+'</span>':'')+'</span></label>';
+  }).join("");
+  document.getElementById("acDel").style.display = FLEET.length>1 ? "" : "none";
   document.getElementById("pgrid").innerHTML = PFIELDS.map(function(x){
     return '<label><span class="lab">'+x[1]+'</span><span class="inp">'+
       '<input inputmode="decimal" data-p="'+x[0]+'" value="'+P[x[0]]+'"><span class="unit">'+x[2]+'</span></span></label>';
@@ -551,6 +695,7 @@ function legHTML(l,i){
       '</div>'+
       '<label style="margin-top:8px; display:block"><span class="lab" data-o="paxlab">Poids passagers — séparés par virgules</span>'+
         '<span class="inp"><input data-k="paxStr" data-id="'+l.id+'" value="'+l.paxStr+'" placeholder="185, 210, 165"></span></label>'+
+      '<div data-o="paxwarn"></div>'+
       '<div class="g2" style="margin-top:8px">'+
         '<label><span class="lab">Distance NavLog (option)</span><span class="inp"><input inputmode="decimal" data-k="nmOv" data-id="'+l.id+'" value="'+l.nmOv+'" placeholder="auto"><span class="unit">NM</span></span></label>'+
         '<label><span class="lab">Temps NavLog (option)</span><span class="inp"><input inputmode="decimal" data-k="minOv" data-id="'+l.id+'" value="'+l.minOv+'" placeholder="auto"><span class="unit">min</span></span></label>'+
@@ -615,11 +760,14 @@ function update(){
         (c.wind.wca>=0?"corriger à droite":"corriger à gauche")+") · Cap "+num(c.wind.heading,0)+"° · GS "+num(c.wind.gs,0)+" kt "+
         (c.wind.headwind>=0 ? "(vent debout "+num(c.wind.headwind,0)+" kt)" : "(vent arrière "+num(-c.wind.headwind,0)+" kt)");
     } else { wi.style.display="none"; wi.textContent=""; }
+    q(id,"paxwarn").innerHTML = c.paxOver ?
+      '<div class="alert red">'+c.paxAll+' passagers saisis pour '+c.seats+' sièges — seuls les '+c.seats+' premiers sont comptés.</div>' : "";
     q(id,"windwarn").innerHTML = c.windWarn ?
       '<div class="alert red">Vent trop fort face à la TAS choisie — vitesse sol quasi nulle ou négative. Ce calcul n\'est plus fiable, ne pas voler.</div>' : "";
 
     if(c.l.auto || c.carry){ setT(id,"autopct",num(c.pct,0)+" %"); setT(id,"autol",num(c.startL,0)+" L"); }
-    setT(id,"paxlab","Poids passagers — séparés par virgules ("+c.pax.length+" pax)");
+    setT(id,"paxlab","Poids passagers — séparés par virgules ("+c.pax.length+(c.seats?"/"+c.seats:"")+" pax)",
+      c.paxOver?"#C0392B":undefined);
 
     var used = (c.burnL===null)?0:c.burnL/P.tank*100;
     var cl=function(x){return Math.max(0,Math.min(100,x||0));};
@@ -671,7 +819,7 @@ function update(){
 
 /* ---------- textes ---------- */
 function textFull(C,tot){
-  var L=["FKNG EC130 B4 — MaxSkid "+num(P.maxskid)+" lb"];
+  var AC=activeAc()||{}; var L=[((AC.reg||"")+" "+(AC.desc||"")).trim()+" — MaxSkid "+num(P.maxskid)+" lb"];
   C.forEach(function(c,i){
     L.push("");
     L.push("LEG "+(i+1)+" : "+legLabel(c.A,c.l.from)+" > "+legLabel(c.B,c.l.to)+(c.nm?" ("+num(c.nm,0)+" NM)":""));
@@ -702,7 +850,7 @@ function textSuivi(C,tot){
   var NUM = ["1\u20E3","2\u20E3","3\u20E3","4\u20E3","5\u20E3","6\u20E3","7\u20E3","8\u20E3","9\u20E3"];
   var L;
   if(STYLE==="emoji"){
-    L=["\uD83D\uDE81 FKNG — SUIVI DE VOL","\uD83D\uDCC5 "+d];
+    L=["\uD83D\uDE81 "+((activeAc()||{}).reg||"")+" — SUIVI DE VOL","\uD83D\uDCC5 "+d];
     C.forEach(function(c,i){
       L.push("");
       L.push((NUM[i]||(i+1)+".")+" "+legLabel(c.A,c.l.from)+" \u27A4 "+legLabel(c.B,c.l.to));
@@ -710,7 +858,7 @@ function textSuivi(C,tot){
     });
     L.push(""); L.push("\u23F1 TOTAL "+hm(tot.hrs).replace("h"," h "));
   } else {
-    L=["FKNG - SUIVI DE VOL",d,"------------------"];
+    L=[((activeAc()||{}).reg||"")+" - SUIVI DE VOL",d,"------------------"];
     C.forEach(function(c,i){
       L.push("");
       L.push("LEG "+(i+1)+"  "+legLabel(c.A,c.l.from)+" > "+legLabel(c.B,c.l.to));
@@ -739,7 +887,21 @@ function copyText(t,btn,lab){
 /* ---------- événements ---------- */
 document.addEventListener("input", function(e){
   var t=e.target;
-  if(t.dataset.p!==undefined){ P[t.dataset.p]=f(t.value); update(); return; }
+  if(t.id==="callsign"){ applyCallsign(t.value); update(); return; }
+  if(t.dataset.ac!==undefined){
+    var a = activeAc(); if(!a) return;
+    var k = t.dataset.ac;
+    a[k] = (k==="reg"||k==="desc") ? t.value : f(t.value);
+    if(k==="reg" || k==="desc"){
+      var el = document.getElementById(k==="reg"?"acReg":"acDesc");
+      if(el) el.textContent = t.value || (k==="reg"?"—":"");
+      Array.prototype.forEach.call(document.querySelectorAll('option[value="'+a.id+'"]'), function(opt){
+        opt.textContent = (a.reg||"—")+(a.desc?" · "+a.desc:"");
+      });
+    } else { P[k] = a[k]; }
+    update(); return;
+  }
+  if(t.dataset.p!==undefined){ P[t.dataset.p]=f(t.value); syncParam(t.dataset.p); update(); return; }
   if(t.dataset.k){
     var idx=-1;
     for(var i=0;i<LEGS.length;i++){ if(LEGS[i].id===t.dataset.id){ idx=i; break; } }
@@ -759,6 +921,11 @@ document.addEventListener("input", function(e){
   }
 });
 document.addEventListener("change", function(e){
+  if(e.target.id==="acSel"){
+    ACTIVE = e.target.value;
+    applyAc(); CALLSIGN = (activeAc()||{}).reg || "";
+    renderParams(); renderTopBar(); update(); return;
+  }
   if(e.target.dataset && e.target.dataset.fuel){
     var l = LEGS.filter(function(x){ return x.id===e.target.dataset.fuel; })[0];
     if(!l) return;
@@ -818,6 +985,24 @@ document.addEventListener("click", function(e){
     var open2=pc.style.display!=="none"; pc.style.display=open2?"none":"block"; t.textContent=open2?"Coller un NavLog":"Fermer";
     document.getElementById("params").style.display="none"; document.getElementById("tparams").textContent="Paramètres";
     return; }
+  if(t.id==="acNew"){
+    var a = newAircraft(activeAc());
+    a.reg = ""; a.desc = "";
+    FLEET.push(a); ACTIVE = a.id;
+    applyAc(); renderParams(); renderTopBar(); update();
+    var first = document.querySelector('#acgrid input[data-ac="reg"]');
+    if(first) first.focus();
+    return;
+  }
+  if(t.id==="acDel"){
+    if(FLEET.length<2) return;
+    var cur = activeAc();
+    if(!confirm("Supprimer « "+(cur.reg||"cet appareil")+" » de la liste ?")) return;
+    FLEET = FLEET.filter(function(x){ return x.id!==cur.id; });
+    ACTIVE = FLEET[0].id;
+    applyAc(); renderParams(); renderTopBar(); update();
+    return;
+  }
   if(t.id==="reset"){ LEGS=[]; renderLegs(); return; }
   if(t.id==="addleg"){ var last=LEGS[LEGS.length-1];
     var n=newLeg(last?last.to:"",""); if(last){ n.paxStr=last.paxStr; n.bag=last.bag; } LEGS.push(n); renderLegs(); return; }
@@ -846,6 +1031,7 @@ document.addEventListener("click", function(e){
 load();
 Array.prototype.forEach.call(document.querySelectorAll("[data-sty]"),function(b){ b.classList.toggle("on", b.dataset.sty===STYLE); });
 renderParams();
+renderTopBar();
 renderLegs();
 
 /* Import auto depuis un raccourci Partager (?navlog=texte-du-PDF) */

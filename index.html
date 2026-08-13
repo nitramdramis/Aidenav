@@ -84,7 +84,7 @@
 </style>
 </head>
 <body>
-<div id="versionBadge" style="position:fixed; top:6px; right:8px; z-index:999; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:10px; color:#4A5A66; background:rgba(255,255,255,0.9); padding:2px 7px; border-radius:5px; border:1px solid #D3D9D6;">v14</div>
+<div id="versionBadge" style="position:fixed; top:6px; right:8px; z-index:999; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:10px; color:#4A5A66; background:rgba(255,255,255,0.9); padding:2px 7px; border-radius:5px; border:1px solid #D3D9D6;">v15</div>
 <div class="wrap">
   <div class="top">
     <div>
@@ -513,6 +513,7 @@ function analyzeAndAddLegs(text){
   }
   msg.textContent = found.length+" leg"+(found.length>1?"s":"")+" ajouté"+(found.length>1?"s":"")+" — reste à entrer les passagers et bagages."+extra;
   renderLegs();
+  try{ window.scrollTo(0,0); }catch(e){}
   return found.length;
 }
 
@@ -1065,6 +1066,7 @@ function handleClipHash(){
   var hash = location.hash || "";
   if(hash.indexOf("clip") === -1) return;
   history.replaceState({}, "", location.pathname + location.search);
+  try{ window.scrollTo(0,0); }catch(e){}   /* le NavLog arrive : on remonte en haut */
   document.getElementById("pasteCard").style.display = "block";
   document.getElementById("tpaste").textContent = "Fermer";
   document.getElementById("pdfStatus").textContent = "Lecture du NavLog\u2026";

@@ -84,7 +84,7 @@
 </style>
 </head>
 <body>
-<div id="versionBadge" style="position:fixed; top:6px; right:8px; z-index:999; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:10px; color:#4A5A66; background:rgba(255,255,255,0.9); padding:2px 7px; border-radius:5px; border:1px solid #D3D9D6;">v5</div>
+<div id="versionBadge" style="position:fixed; top:6px; right:8px; z-index:999; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:10px; color:#4A5A66; background:rgba(255,255,255,0.9); padding:2px 7px; border-radius:5px; border:1px solid #D3D9D6;">v7</div>
 <div class="wrap">
   <div class="top">
     <div>
@@ -732,8 +732,21 @@ document.addEventListener("input", function(e){
   var t=e.target;
   if(t.dataset.p!==undefined){ P[t.dataset.p]=f(t.value); update(); return; }
   if(t.dataset.k){
-    var l=LEGS.filter(function(x){return x.id===t.dataset.id;})[0]; if(!l) return;
-    l[t.dataset.k]=t.value; update();
+    var idx=-1;
+    for(var i=0;i<LEGS.length;i++){ if(LEGS[i].id===t.dataset.id){ idx=i; break; } }
+    if(idx===-1) return;
+    LEGS[idx][t.dataset.k]=t.value;
+    /* Passagers et bagages se reportent sur les legs suivants
+       (un débarquement ou un déchargement au leg N vaut pour N+1, N+2...) */
+    if(t.dataset.k==="paxStr" || t.dataset.k==="bag"){
+      var key = t.dataset.k;
+      for(var j=idx+1;j<LEGS.length;j++){
+        LEGS[j][key] = t.value;
+        var el = document.querySelector('input[data-k="'+key+'"][data-id="'+LEGS[j].id+'"]');
+        if(el && el!==t) el.value = t.value;
+      }
+    }
+    update();
   }
 });
 document.addEventListener("change", function(e){
